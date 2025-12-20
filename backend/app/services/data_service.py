@@ -60,9 +60,9 @@ class DataService:
             df = pd.DataFrame(df_data)
             df = df.sort_values("Date").reset_index(drop=True)
             
-            print(f"✅ Real-time data fetched successfully: {len(df)} rows")
-            print(f"📅 Date range: {df['Date'].min().strftime('%Y-%m-%d')} to {df['Date'].max().strftime('%Y-%m-%d')}")
-            print(f"💰 Price range: ${df['Price'].min():.2f} - ${df['Price'].max():.2f}")
+            print(f"Real-time data fetched successfully: {len(df)} rows")
+            print(f"Date range: {df['Date'].min().strftime('%Y-%m-%d')} to {df['Date'].max().strftime('%Y-%m-%d')}")
+            print(f"Price range: ${df['Price'].min():.2f} - ${df['Price'].max():.2f}")
             
             return df
             
@@ -72,7 +72,7 @@ class DataService:
             raise Exception(f"Failed to fetch real-time data: {str(e)}")
     
     def create_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create ML features from raw price data"""
+        """Create ML features from raw price data - EXACT MATCH WITH PUBLISHED ARTICLE"""
         try:
             df_copy = df.copy()
             
@@ -82,9 +82,10 @@ class DataService:
             if missing_cols:
                 raise Exception(f"Missing required columns: {missing_cols}")
             
-            print("Creating lag features and technical indicators...")
+            print("Creating features (matching published article)...")
             
-            # Create lag features (previous day values)
+            # ===== EXACT FEATURES FROM ARTICLE =====
+            # Lag features
             df_copy['Price_lag1'] = df_copy['Price'].shift(1)
             df_copy['Price_lag2'] = df_copy['Price'].shift(2)
             df_copy['Vol_lag1'] = df_copy['Vol.'].shift(1)
@@ -92,16 +93,17 @@ class DataService:
             df_copy['High_lag1'] = df_copy['High'].shift(1)
             df_copy['Low_lag1'] = df_copy['Low'].shift(1)
             
-            # Create moving averages
+            # Moving averages (with shift(1) like in article)
             df_copy['MA3'] = df_copy['Price'].rolling(window=3).mean().shift(1)
             df_copy['MA5'] = df_copy['Price'].rolling(window=5).mean().shift(1)
             
-            # Drop rows with NaN values (first few rows)
+            # Drop NaN values
             initial_rows = len(df_copy)
             df_copy = df_copy.dropna().reset_index(drop=True)
             final_rows = len(df_copy)
             
-            print(f"✅ Features created: {initial_rows} -> {final_rows} rows (removed {initial_rows - final_rows} NaN rows)")
+            print(f"✅ Features created (article version): {initial_rows} -> {final_rows} rows")
+            print(f"📊 Total features: 8 (Price_lag1, Price_lag2, Vol_lag1, Open_lag1, High_lag1, Low_lag1, MA3, MA5)")
             
             return df_copy
             
@@ -129,7 +131,7 @@ class DataService:
             if len(X) < 10:
                 raise Exception("Insufficient data after cleaning: need at least 10 samples")
             
-            print(f"✅ Training data prepared: {len(X)} samples, {len(self.features)} features")
+            print(f"Training data prepared: {len(X)} samples, {len(self.features)} features")
             return X, y
             
         except Exception as e:
@@ -191,25 +193,37 @@ class DataService:
         except Exception as e:
             return {"error": f"Failed to get data info: {str(e)}"}
     
-    async def get_current_price(self) -> float:
-        """Get current Ethereum price from API"""
-        url = f"{settings.COINGECKO_API_URL}/simple/price"
-        params = {
-            'ids': 'ethereum',
-            'vs_currencies': 'usd'
-        }
-        
+    async def get_current_price(self) -> Dict:
+        """Get current Ethereum price from CoinGecko API"""
         try:
+            url = f"{settings.COINGECKO_API_URL}/simple/price"
+            params = {
+                'ids': 'ethereum',
+                'vs_currencies': 'usd',
+                'include_24hr_change': 'true',
+                'include_24hr_vol': 'true'
+            }
+            
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
-            current_price = data['ethereum']['usd']
-            print(f"💰 Current ETH price: ${current_price}")
-            return float(current_price)
+            if 'ethereum' not in data:
+                raise Exception("Ethereum data not found in API response")
             
+            eth_data = data['ethereum']
+            
+            return {
+                "current_price": eth_data.get('usd', 0),
+                "price_change_24h": eth_data.get('usd_24h_change', 0),
+                "volume_24h": eth_data.get('usd_24h_vol', 0),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to fetch current price: {str(e)}")
         except Exception as e:
-            raise Exception(f"Failed to get current price: {str(e)}")
+            raise Exception(f"Error processing price data: {str(e)}")
     
     def validate_data(self, df: pd.DataFrame) -> Dict[str, any]:
         """Validate data quality and completeness"""

@@ -23,37 +23,56 @@ class EthereumPredictor:
         self.is_trained = False
         self.training_results = {}
         self.last_training_time = None
-        
+    
     def train_basic_model(self, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray) -> Dict:
         print("Training XGBoost Basic Model...")
         
-        # Use parameters from config
-        self.xgb_basic = XGBRegressor(**settings.XGB_BASIC_PARAMS)
+        basic_params = {
+            'objective': 'reg:squarederror',
+            'n_estimators': 100,
+            'max_depth': 2,
+            'learning_rate': 0.3,
+            'subsample': 1.0,
+            'colsample_bytree': 1.0,
+            'reg_alpha': 1.0,
+            'reg_lambda': 1.0,
+        }
+        
+        self.xgb_basic = XGBRegressor(**basic_params)
         
         start_time = time.time()
         self.xgb_basic.fit(X_train, y_train)
         training_time_basic = time.time() - start_time
         
-        # Predictions
         y_pred_basic = self.xgb_basic.predict(X_test)
         y_train_pred_basic = self.xgb_basic.predict(X_train)
         
-        # Test Metrics
         mse_basic = mean_squared_error(y_test, y_pred_basic)
         mae_basic = mean_absolute_error(y_test, y_pred_basic)
         r2_basic = r2_score(y_test, y_pred_basic)
         rmse_basic = np.sqrt(mse_basic)
         
-        # Training Metrics
         mse_train_basic = mean_squared_error(y_train, y_train_pred_basic)
         mae_train_basic = mean_absolute_error(y_train, y_train_pred_basic)
         r2_train_basic = r2_score(y_train, y_train_pred_basic)
         rmse_train_basic = np.sqrt(mse_train_basic)
         
-        # Percentage metrics
         y_range = y_test.max() - y_test.min()
         mae_pct_basic = (mae_basic / y_range) * 100 if y_range > 0 else 0
         rmse_pct_basic = (rmse_basic / y_range) * 100 if y_range > 0 else 0
+        
+        y_range_train = y_train.max() - y_train.min()
+        mae_pct_train = (mae_train_basic / y_range_train) * 100 if y_range_train > 0 else 0
+        rmse_pct_train = (rmse_train_basic / y_range_train) * 100 if y_range_train > 0 else 0
+        
+        print(f"  Training Time: {training_time_basic:.2f} sec")
+        print(f"  RMSE: ${rmse_basic:.4f} ({rmse_pct_basic:.2f}%)")
+        print(f"  MAE:  ${mae_basic:.4f} ({mae_pct_basic:.2f}%)")
+        print(f"  R²:   {r2_basic:.4f}")
+        print("\n--- Training Set Metrics (Basic XGBoost) ---")
+        print(f"  RMSE (Train): ${rmse_train_basic:.4f}")
+        print(f"  MAE  (Train): ${mae_train_basic:.4f}")
+        print(f"  R²   (Train): {r2_train_basic:.4f}")
         
         results = {
             "model_type": "basic",
@@ -69,24 +88,25 @@ class EthereumPredictor:
                 "rmse": float(rmse_train_basic),
                 "mae": float(mae_train_basic),
                 "r2": float(r2_train_basic),
-                "mae_pct": 0.0,  # Calculate if needed
-                "rmse_pct": 0.0   # Calculate if needed
-            }
+                "mae_pct": float(mae_pct_train),
+                "rmse_pct": float(rmse_pct_train)
+            },
+            "best_params": None,
+            "best_iteration": None
         }
         
         self.training_results['basic'] = results
         return results
-    
+
     def train_bayesian_model(self, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray) -> Dict:
         print("Training XGBoost with Bayesian Optimization...")
         
-        # Search spaces dari config
         search_spaces = {
-            'n_estimators': Integer(*settings.BAYESIAN_SEARCH_PARAMS['n_estimators']),
-            'max_depth': Integer(*settings.BAYESIAN_SEARCH_PARAMS['max_depth']),
-            'learning_rate': Real(*settings.BAYESIAN_SEARCH_PARAMS['learning_rate'], prior='log-uniform'),
-            'subsample': Real(*settings.BAYESIAN_SEARCH_PARAMS['subsample']),
-            'colsample_bytree': Real(*settings.BAYESIAN_SEARCH_PARAMS['colsample_bytree']),
+            'n_estimators': Integer(300, 500),
+            'max_depth': Integer(3, 5),
+            'learning_rate': Real(0.05, 0.1, prior='log-uniform'),
+            'subsample': Real(0.7, 0.9),
+            'colsample_bytree': Real(0.7, 0.9),
         }
         
         tscv = TimeSeriesSplit(n_splits=3)
@@ -113,31 +133,44 @@ class EthereumPredictor:
         
         self.xgb_bayesian = opt.best_estimator_
         
-        # Predictions
         y_pred_bayesian = self.xgb_bayesian.predict(X_test)
         y_train_pred_bayes = self.xgb_bayesian.predict(X_train)
         
-        # Test Metrics
         mse_bayes = mean_squared_error(y_test, y_pred_bayesian)
         mae_bayes = mean_absolute_error(y_test, y_pred_bayesian)
         r2_bayes = r2_score(y_test, y_pred_bayesian)
         rmse_bayes = np.sqrt(mse_bayes)
         
-        # Training Metrics
         mse_train_bayes = mean_squared_error(y_train, y_train_pred_bayes)
         mae_train_bayes = mean_absolute_error(y_train, y_train_pred_bayes)
         r2_train_bayes = r2_score(y_train, y_train_pred_bayes)
         rmse_train_bayes = np.sqrt(mse_train_bayes)
         
-        # Percentage metrics
         y_range = y_test.max() - y_test.min()
         mae_pct = (mae_bayes / y_range) * 100 if y_range > 0 else 0
         rmse_pct = (rmse_bayes / y_range) * 100 if y_range > 0 else 0
         
-        # Best iteration info
-        results = opt.cv_results_
-        best_index = np.argmax(results['mean_test_score'])
+        y_range_train = y_train.max() - y_train.min()
+        mae_pct_train = (mae_train_bayes / y_range_train) * 100 if y_range_train > 0 else 0
+        rmse_pct_train = (rmse_train_bayes / y_range_train) * 100 if y_range_train > 0 else 0
+        
+        results_cv = opt.cv_results_
+        best_index = np.argmax(results_cv['mean_test_score'])
         best_iteration = best_index + 1
+        
+        print(f"\nXGBOOST + BAYESIAN OPTIMIZATION RESULTS:")
+        print(f"  Training Time: {training_time_bayesian:.2f} sec")
+        print(f"  RMSE: ${rmse_bayes:.4f} ({rmse_pct:.2f}%)")
+        print(f"  MAE:  ${mae_bayes:.4f} ({mae_pct:.2f}%)")
+        print(f"  R²:   {r2_bayes:.4f}")
+        print("\nOptimal parameters:")
+        for param, value in opt.best_params_.items():
+            print(f"  {param}: {value:.4f}" if isinstance(value, float) else f"  {param}: {value}")
+        print(f"\nBest parameters found on iteration: {best_iteration} of 25")
+        print("\n--- Training Set Metrics (Bayesian Optimized XGBoost) ---")
+        print(f"  RMSE (Train): ${rmse_train_bayes:.4f}")
+        print(f"  MAE  (Train): ${mae_train_bayes:.4f}")
+        print(f"  R²   (Train): {r2_train_bayes:.4f}")
         
         results = {
             "model_type": "bayesian",
@@ -155,8 +188,8 @@ class EthereumPredictor:
                 "rmse": float(rmse_train_bayes),
                 "mae": float(mae_train_bayes),
                 "r2": float(r2_train_bayes),
-                "mae_pct": 0.0,  # Calculate if needed
-                "rmse_pct": 0.0   # Calculate if needed
+                "mae_pct": float(mae_pct_train),
+                "rmse_pct": float(rmse_pct_train)
             }
         }
         
@@ -166,11 +199,10 @@ class EthereumPredictor:
         return results
     
     def predict_tomorrow(self, latest_features: Dict[str, float]) -> Dict:
-        """Predict next day price using trained models"""
+
         if not self.is_trained or self.xgb_bayesian is None:
             raise Exception("Models not trained yet. Call train_models first.")
         
-        # Convert features to array format
         feature_array = np.array([[
             latest_features['Price_lag1'],
             latest_features['Price_lag2'], 
@@ -182,36 +214,27 @@ class EthereumPredictor:
             latest_features['MA5']
         ]])
         
-        # Scale features
-        try:
-            feature_scaled = self.scaler.transform(feature_array)
-        except Exception as e:
-            raise Exception(f"Failed to scale features: {str(e)}")
+        feature_scaled = self.scaler.transform(feature_array)
         
-        # Predictions
         basic_pred = None
         if self.xgb_basic is not None:
             basic_pred = float(self.xgb_basic.predict(feature_scaled)[0])
             
         bayesian_pred = float(self.xgb_bayesian.predict(feature_scaled)[0])
         
-        # Determine trend direction
         current_price = latest_features.get('Price_lag1', 0)
         trend_direction = "bullish" if bayesian_pred > current_price else "bearish"
-        
-        # Calculate confidence interval (simplified)
         price_change_pct = ((bayesian_pred - current_price) / current_price * 100) if current_price > 0 else 0
-        confidence_interval = {
-            "lower": bayesian_pred * 0.95,  # 5% below
-            "upper": bayesian_pred * 1.05   # 5% above
-        }
         
         return {
             "tomorrow_predictions": {
                 "basic_model": basic_pred,
                 "bayesian_model": bayesian_pred,
-                "recommended": bayesian_pred,  # Use Bayesian as recommended
-                "confidence_interval": confidence_interval
+                "recommended": bayesian_pred,
+                "confidence_interval": {
+                    "lower": bayesian_pred * 0.95,
+                    "upper": bayesian_pred * 1.05
+                }
             },
             "current_price": current_price,
             "prediction_timestamp": datetime.now().isoformat(),
@@ -220,59 +243,37 @@ class EthereumPredictor:
             "price_change_pct": round(price_change_pct, 2)
         }
     
-    def get_feature_importance(self) -> Dict[str, float]:
-        """Get feature importance from best model"""
-        if not self.is_trained or self.xgb_bayesian is None:
-            return {}
-        
-        feature_names = settings.FEATURE_COLUMNS
-        importance_scores = self.xgb_bayesian.feature_importances_
-        
-        return dict(zip(feature_names, importance_scores.tolist()))
-    
     def save_models(self, filepath: str = None):
         """Save trained models"""
         if filepath is None:
             filepath = settings.MODEL_SAVE_PATH
-            
         os.makedirs(filepath, exist_ok=True)
         
-        try:
-            if self.xgb_basic:
-                joblib.dump(self.xgb_basic, f"{filepath}/xgb_basic.pkl")
-            if self.xgb_bayesian:
-                joblib.dump(self.xgb_bayesian, f"{filepath}/xgb_bayesian.pkl")
-            joblib.dump(self.scaler, f"{filepath}/scaler.pkl")
-            
-            # Save training results
-            joblib.dump(self.training_results, f"{filepath}/training_results.pkl")
-            
-            print(f"Models saved to {filepath}")
-            
-        except Exception as e:
-            raise Exception(f"Failed to save models: {str(e)}")
-        
+        if self.xgb_basic:
+            joblib.dump(self.xgb_basic, f"{filepath}/xgb_basic.pkl")
+        if self.xgb_bayesian:
+            joblib.dump(self.xgb_bayesian, f"{filepath}/xgb_bayesian.pkl")
+        joblib.dump(self.scaler, f"{filepath}/scaler.pkl")
+        joblib.dump(self.training_results, f"{filepath}/training_results.pkl")
+        print(f"Models saved to {filepath}")
+    
     def load_models(self, filepath: str = None):
         """Load trained models"""
         if filepath is None:
             filepath = settings.MODEL_SAVE_PATH
-            
+        
         try:
             if os.path.exists(f"{filepath}/xgb_basic.pkl"):
                 self.xgb_basic = joblib.load(f"{filepath}/xgb_basic.pkl")
-                
             if os.path.exists(f"{filepath}/xgb_bayesian.pkl"):
                 self.xgb_bayesian = joblib.load(f"{filepath}/xgb_bayesian.pkl")
-                
             if os.path.exists(f"{filepath}/scaler.pkl"):
                 self.scaler = joblib.load(f"{filepath}/scaler.pkl")
-                
             if os.path.exists(f"{filepath}/training_results.pkl"):
                 self.training_results = joblib.load(f"{filepath}/training_results.pkl")
-                
+            
             self.is_trained = True
             print(f"Models loaded from {filepath}")
-            
         except Exception as e:
             print(f"Failed to load models: {e}")
             self.is_trained = False

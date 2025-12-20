@@ -41,9 +41,14 @@ class Settings:
     
     # Feature Names
     FEATURE_COLUMNS: List[str] = [
-        "Price_lag1", "Price_lag2", "Vol_lag1", 
-        "Open_lag1", "High_lag1", "Low_lag1", 
-        "MA3", "MA5"
+        "Price_lag1",
+        "Price_lag2", 
+        "Vol_lag1",
+        "Open_lag1",
+        "High_lag1",
+        "Low_lag1",
+        "MA3",
+        "MA5"
     ]
     
     # CORS Settings

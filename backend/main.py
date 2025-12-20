@@ -51,8 +51,18 @@ async def health_check():
 # Create necessary directories on startup
 @app.on_event("startup")
 async def startup_event():
+    from app.routers.predictions import predictor  # ✅ ADD THIS
+    
     # Create models directory
     os.makedirs(settings.MODEL_SAVE_PATH, exist_ok=True)
+    
+    # ✅ ADD THIS - Load saved models
+    try:
+        predictor.load_models()
+        print("Models loaded from saved_models/")
+    except Exception as e:
+        print(f"No saved models found: {e}")
+    
     print(f"{settings.PROJECT_NAME} API started successfully!")
     print(f"Docs available at: http://localhost:8000/docs")
 

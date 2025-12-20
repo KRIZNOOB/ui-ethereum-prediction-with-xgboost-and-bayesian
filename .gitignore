@@ -1,50 +1,58 @@
-# Python Virtual Environment
-/.venv/*
-/venv/*
+# Virtual Environment
+.venv/
+venv/
+env/
 
-# Python Cache & Compiled Files
+# Python Cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
 *.pyo
 
-# Backend Specific
-backend/__pycache__/
-backend/app/__pycache__/
-backend/app/*/__pycache__/
+# ML Models
+backend/saved_models/
+saved_models/
+*.pkl
+*.joblib
+
+# Backend Logs
 backend/*.log
 backend/logs/
-
-# ML Models (trained models)
-backend/saved_models/*.pkl          
-backend/saved_models/*.joblib       
-backend/saved_models/
-saved_models/*.pkl                 
-saved_models/*.joblib              
-
-# Environment Variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# OS Generated Files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
 *.log
 logs/
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js Build
+.next/
+out/
+build/
+dist/
+
+# Next.js Cache
+.next/cache/
+
+# Environment Files
+.env
+.env.local
+.env*.local
+
+# VS Code
+.vscode/
+
+# PyCharm / IntelliJ
+.idea/
+
+# OS FILES
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+
+# DATA FILES
+# *.csv
+# *.json
+# data/
