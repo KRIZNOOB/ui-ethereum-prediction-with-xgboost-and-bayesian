@@ -43,7 +43,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 export default function TrainingPage() {
   const [dataSource, setDataSource] = React.useState("realtime");
-  const [days, setDays] = React.useState(30);
+  const [days, setDays] = React.useState(90);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isTraining, setIsTraining] = React.useState(false);
   const [dataLoaded, setDataLoaded] = React.useState(false);
