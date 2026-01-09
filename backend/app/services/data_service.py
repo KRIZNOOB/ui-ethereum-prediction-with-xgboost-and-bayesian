@@ -28,7 +28,6 @@ class DataService:
         }
         
         try:
-            print(f"Fetching {days} days of real-time data from CoinGecko...")
             response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -46,23 +45,19 @@ class DataService:
                 date = datetime.fromtimestamp(timestamp / 1000)
                 volume = volumes[i][1] if i < len(volumes) else 0
                 
-                # For daily data, use price as OHLC (simplified)
+                # For daily data, use price as OHLC
                 # In production, you'd get actual OHLC data
                 df_data.append({
                     'Date': date,
                     'Price': price,
-                    'Open': price,  # Simplified - same as close
-                    'High': price * 1.005,  # Estimated +0.5%
-                    'Low': price * 0.995,   # Estimated -0.5%
+                    'Open': price,  
+                    'High': price * 1.005,
+                    'Low': price * 0.995,
                     'Vol.': volume
                 })
             
             df = pd.DataFrame(df_data)
             df = df.sort_values("Date").reset_index(drop=True)
-            
-            print(f"Real-time data fetched successfully: {len(df)} rows")
-            print(f"Date range: {df['Date'].min().strftime('%Y-%m-%d')} to {df['Date'].max().strftime('%Y-%m-%d')}")
-            print(f"Price range: ${df['Price'].min():.2f} - ${df['Price'].max():.2f}")
             
             return df
             
@@ -72,7 +67,7 @@ class DataService:
             raise Exception(f"Failed to fetch real-time data: {str(e)}")
     
     def create_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create ML features from raw price data - EXACT MATCH WITH PUBLISHED ARTICLE"""
+        """Create ML features from raw price data"""
         try:
             df_copy = df.copy()
             
@@ -82,9 +77,6 @@ class DataService:
             if missing_cols:
                 raise Exception(f"Missing required columns: {missing_cols}")
             
-            print("Creating features (matching published article)...")
-            
-            # ===== EXACT FEATURES FROM ARTICLE =====
             # Lag features
             df_copy['Price_lag1'] = df_copy['Price'].shift(1)
             df_copy['Price_lag2'] = df_copy['Price'].shift(2)
@@ -93,17 +85,12 @@ class DataService:
             df_copy['High_lag1'] = df_copy['High'].shift(1)
             df_copy['Low_lag1'] = df_copy['Low'].shift(1)
             
-            # Moving averages (with shift(1) like in article)
+            # Moving averages
             df_copy['MA3'] = df_copy['Price'].rolling(window=3).mean().shift(1)
             df_copy['MA5'] = df_copy['Price'].rolling(window=5).mean().shift(1)
             
             # Drop NaN values
-            initial_rows = len(df_copy)
             df_copy = df_copy.dropna().reset_index(drop=True)
-            final_rows = len(df_copy)
-            
-            print(f"✅ Features created (article version): {initial_rows} -> {final_rows} rows")
-            print(f"📊 Total features: 8 (Price_lag1, Price_lag2, Vol_lag1, Open_lag1, High_lag1, Low_lag1, MA3, MA5)")
             
             return df_copy
             
@@ -123,7 +110,6 @@ class DataService:
             
             # Final check for NaN values
             if X.isnull().any().any():
-                print("⚠️ Warning: Found NaN values in features, cleaning...")
                 nan_mask = X.isnull().any(axis=1)
                 X = X[~nan_mask]
                 y = y[~nan_mask]
@@ -131,7 +117,6 @@ class DataService:
             if len(X) < 10:
                 raise Exception("Insufficient data after cleaning: need at least 10 samples")
             
-            print(f"Training data prepared: {len(X)} samples, {len(self.features)} features")
             return X, y
             
         except Exception as e:
@@ -152,7 +137,6 @@ class DataService:
                     raise Exception(f"Feature {feature} not found in data")
                 latest_features[feature] = float(latest_row[feature])
             
-            print(f"✅ Latest features extracted for prediction")
             return latest_features
             
         except Exception as e:

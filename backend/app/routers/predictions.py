@@ -23,8 +23,6 @@ predictor = EthereumPredictor()
 async def train_models(historical_days: int = 365):
     """Train both XGBoost models with real-time data - EXACT MATCH WITH PUBLISHED ARTICLE"""
     try:
-        print(f"Starting training with {historical_days} days of real-time data...")
-        
         # Validate days parameter
         if historical_days < 90:
             raise HTTPException(
@@ -33,11 +31,9 @@ async def train_models(historical_days: int = 365):
             )
         
         # 1. Fetch Real-time Data
-        print("Fetching real-time data from CoinGecko...")
         df = await data_service.fetch_realtime_data(days=historical_days)
         
         # 2. Validate Data Quality
-        print("Validating data quality...")
         validation = data_service.validate_data(df)
         if not validation["is_valid"]:
             raise HTTPException(
@@ -45,15 +41,10 @@ async def train_models(historical_days: int = 365):
                 detail=f"Data validation failed: {validation['errors']}"
             )
         
-        if validation["warnings"]:
-            print(f"Data warnings: {validation['warnings']}")
-        
         # 3. Feature Engineering
-        print("Creating ML features...")
         df_featured = data_service.create_features(df)
         
         # 4. Prepare Training Data
-        print("Preparing training data...")
         X, y = data_service.prepare_training_data(df_featured)
         
         # Check minimum data requirement
@@ -63,17 +54,12 @@ async def train_models(historical_days: int = 365):
                 detail=f"Insufficient data after feature engineering: {len(X)} samples (need at least 15)"
             )
         
-        # ===== 5. SPLIT DATA (80-20, NO SHUFFLE - TIME SERIES) =====
-        print("📈 Splitting data (80-20, time series)...")
+        # 5. SPLIT DATA (80-20, NO SHUFFLE - TIME SERIES)
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, shuffle=False
         )
         
-        print(f"   Training samples: {len(X_train)}")
-        print(f"   Test samples: {len(X_test)}")
-        
-        # ===== 6. STANDARDIZE FEATURES  =====
-        print("Standardizing features with StandardScaler...")
+        # 6. STANDARDIZE FEATURES
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
@@ -81,11 +67,7 @@ async def train_models(historical_days: int = 365):
         # Store scaler in predictor for future predictions
         predictor.scaler = scaler
         
-        # ===== 7. TRAIN BASIC XGBOOST  =====
-        print("\n" + "="*60)
-        print("TRAINING BASIC XGBOOST")
-        print("="*60)
-        
+        # 7. TRAIN BASIC XGBOOST
         import time
         start_time = time.time()
         
@@ -97,15 +79,7 @@ async def train_models(historical_days: int = 365):
         basic_training_time = time.time() - start_time
         basic_results["training_time"] = basic_training_time
         
-        print(f"Basic XGBoost trained in {basic_training_time:.2f}s")
-        print(f"   Test RMSE: ${basic_results['test_metrics']['rmse']:.2f}")
-        print(f"   Test R²: {basic_results['test_metrics']['r2']:.4f}")
-        
-        # ===== 8. TRAIN BAYESIAN XGBOOST  =====
-        print("\n" + "="*60)
-        print("TRAINING BAYESIAN OPTIMIZED XGBOOST")
-        print("="*60)
-        
+        # 8. TRAIN BAYESIAN XGBOOST
         start_time = time.time()
         
         bayesian_results = predictor.train_bayesian_model(
@@ -116,13 +90,7 @@ async def train_models(historical_days: int = 365):
         bayesian_training_time = time.time() - start_time
         bayesian_results["training_time"] = bayesian_training_time
         
-        print(f"Bayesian XGBoost trained in {bayesian_training_time:.2f}s")
-        print(f"   Test RMSE: ${bayesian_results['test_metrics']['rmse']:.2f}")
-        print(f"   Test R²: {bayesian_results['test_metrics']['r2']:.4f}")
-        print(f"   Best iteration: {bayesian_results.get('best_iteration', 'N/A')} of 25")
-        
         # 9. Save Models
-        print("\ Saving trained models...")
         predictor.save_models()
         
         # 10. Get Latest Features
@@ -138,10 +106,6 @@ async def train_models(historical_days: int = 365):
             "historical_days": historical_days
         })
         
-        print("\n" + "="*60)
-        print("TRAINING COMPLETED SUCCESSFULLY!")
-        print("="*60)
-        
         return TrainingResponse(
             status="success",
             message=f"Models trained successfully with {historical_days} days of real-time data",
@@ -154,7 +118,6 @@ async def train_models(historical_days: int = 365):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Training error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -174,16 +137,12 @@ async def predict_tomorrow():
             )
         
         # Get latest features
-        print("Fetching data for prediction...")
         df = await data_service.fetch_realtime_data(days=30)
         df_featured = data_service.create_features(df)
         latest_features = data_service.get_latest_features(df_featured)
         
-        print("Generating prediction...")
         # Get prediction
         result = predictor.predict_tomorrow(latest_features)
-        
-        print(f"Prediction: ${result['tomorrow_predictions']['bayesian_model']:.2f}")
         
         return PredictionResponse(
             status="success",
@@ -198,7 +157,6 @@ async def predict_tomorrow():
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Prediction error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -233,10 +191,9 @@ async def get_current_price():
     try:
         result = await data_service.get_current_price()
         
-        # ✅ Return FLAT structure (no nesting)
         return {
-            "current_price": result["current_price"],  # Direct number
-            "price_change_24h": result["price_change_24h"],  # Direct number  
+            "current_price": result["current_price"],
+            "price_change_24h": result["price_change_24h"],
             "volume_24h": result["volume_24h"],
             "timestamp": result["timestamp"]
         }
@@ -258,23 +215,14 @@ async def get_historical_prices(days: int = 30, interval: str = "daily"):
             
             params = {
                 "vs_currency": "usd",
-                "days": "2"  # 2 days akan auto-return hourly data
+                "days": "2"
             }
-            
-            print(f"Fetching hourly data from: {url}")
-            print(f"Params: {params}")
             
             response = requests.get(url, params=params)
             
-            print(f"Response status: {response.status_code}")
-            
             if response.status_code == 200:
                 data = response.json()
-                print(f"Response keys: {data.keys()}")
-                
                 prices = data.get("prices", [])
-                print(f"Prices length: {len(prices)}")
-                print(f"First 3 prices: {prices[:3] if prices else 'Empty'}")
                 
                 historical_data = []
                 for price_point in prices:
@@ -289,17 +237,11 @@ async def get_historical_prices(days: int = 30, interval: str = "daily"):
                             "price": round(float(price), 2),
                             "timestamp": timestamp
                         })
-                    except (IndexError, ValueError, TypeError) as e:
-                        print(f"Skipping invalid price point: {price_point}, error: {e}")
+                    except (IndexError, ValueError, TypeError):
                         continue
                 
-                # Sort by timestamp dan ambil 24 data terakhir aja
                 historical_data.sort(key=lambda x: x["timestamp"])
-                
-                # Ambil 24 data points terakhir (1 jam = 1 data point)
                 last_24_hours = historical_data[-24:] if len(historical_data) >= 24 else historical_data
-                
-                print(f"Last 24 hours data length: {len(last_24_hours)}")
                 
                 return {
                     "status": "success",
@@ -310,11 +252,9 @@ async def get_historical_prices(days: int = 30, interval: str = "daily"):
                     "source": "coingecko"
                 }
             else:
-                print(f"CoinGecko API error: {response.status_code}")
-                print(f"Response text: {response.text}")
                 raise HTTPException(status_code=500, detail=f"CoinGecko API error: {response.status_code}")
         
-        else:  # daily data - tetap sama
+        else:  # daily data
             df = await data_service.fetch_realtime_data(days=days)
             
             historical_data = []
@@ -333,8 +273,7 @@ async def get_historical_prices(days: int = 30, interval: str = "daily"):
                         "price": round(float(price_value), 2),
                         "timestamp": int(date_value.timestamp() * 1000) if hasattr(date_value, 'timestamp') else 0
                     })
-                except Exception as e:
-                    print(f"Skipping invalid row: {row.to_dict()}, error: {e}")
+                except Exception:
                     continue
             
             historical_data.sort(key=lambda x: x.get("timestamp", 0))
@@ -351,7 +290,6 @@ async def get_historical_prices(days: int = 30, interval: str = "daily"):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in historical-prices: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to fetch historical prices: {str(e)}")
@@ -403,7 +341,6 @@ async def get_data_info(days: int = 365):
             )
         
         # Get real-time data
-        print(f"Fetching data info for {days} days...")
         df = await data_service.fetch_realtime_data(days=days)
         df_featured = data_service.create_features(df)
         
@@ -411,8 +348,8 @@ async def get_data_info(days: int = 365):
         
         return DataInfo(
             total_rows=data_info["total_rows"],
-            training_rows=0,  # Will be set during training
-            test_rows=0,      # Will be set during training
+            training_rows=0,
+            test_rows=0,
             features=settings.FEATURE_COLUMNS,
             date_range=data_info["date_range"],
             latest_price=data_info["latest_price"],

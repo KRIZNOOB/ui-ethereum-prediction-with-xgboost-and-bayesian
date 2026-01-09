@@ -6,7 +6,6 @@ import os
 from app.core.config import settings
 from app.routers import predictions
 
-# Create FastAPI app
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Real-time Ethereum price prediction using XGBoost and Bayesian Optimization",
@@ -15,7 +14,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -24,7 +22,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(
     predictions.router, 
     prefix=f"{settings.API_V1_STR}/predictions", 
@@ -48,23 +45,16 @@ async def health_check():
         "version": settings.VERSION
     }
 
-# Create necessary directories on startup
 @app.on_event("startup")
 async def startup_event():
-    from app.routers.predictions import predictor  # ✅ ADD THIS
+    from app.routers.predictions import predictor
     
-    # Create models directory
     os.makedirs(settings.MODEL_SAVE_PATH, exist_ok=True)
     
-    # ✅ ADD THIS - Load saved models
     try:
         predictor.load_models()
-        print("Models loaded from saved_models/")
-    except Exception as e:
-        print(f"No saved models found: {e}")
-    
-    print(f"{settings.PROJECT_NAME} API started successfully!")
-    print(f"Docs available at: http://localhost:8000/docs")
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     uvicorn.run(

@@ -25,8 +25,6 @@ class EthereumPredictor:
         self.last_training_time = None
     
     def train_basic_model(self, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray) -> Dict:
-        print("Training XGBoost Basic Model...")
-        
         basic_params = {
             'objective': 'reg:squarederror',
             'n_estimators': 100,
@@ -65,15 +63,6 @@ class EthereumPredictor:
         mae_pct_train = (mae_train_basic / y_range_train) * 100 if y_range_train > 0 else 0
         rmse_pct_train = (rmse_train_basic / y_range_train) * 100 if y_range_train > 0 else 0
         
-        print(f"  Training Time: {training_time_basic:.2f} sec")
-        print(f"  RMSE: ${rmse_basic:.4f} ({rmse_pct_basic:.2f}%)")
-        print(f"  MAE:  ${mae_basic:.4f} ({mae_pct_basic:.2f}%)")
-        print(f"  R²:   {r2_basic:.4f}")
-        print("\n--- Training Set Metrics (Basic XGBoost) ---")
-        print(f"  RMSE (Train): ${rmse_train_basic:.4f}")
-        print(f"  MAE  (Train): ${mae_train_basic:.4f}")
-        print(f"  R²   (Train): {r2_train_basic:.4f}")
-        
         results = {
             "model_type": "basic",
             "training_time": training_time_basic,
@@ -99,8 +88,6 @@ class EthereumPredictor:
         return results
 
     def train_bayesian_model(self, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, y_test: np.ndarray) -> Dict:
-        print("Training XGBoost with Bayesian Optimization...")
-        
         search_spaces = {
             'n_estimators': Integer(300, 500),
             'max_depth': Integer(3, 5),
@@ -158,20 +145,6 @@ class EthereumPredictor:
         best_index = np.argmax(results_cv['mean_test_score'])
         best_iteration = best_index + 1
         
-        print(f"\nXGBOOST + BAYESIAN OPTIMIZATION RESULTS:")
-        print(f"  Training Time: {training_time_bayesian:.2f} sec")
-        print(f"  RMSE: ${rmse_bayes:.4f} ({rmse_pct:.2f}%)")
-        print(f"  MAE:  ${mae_bayes:.4f} ({mae_pct:.2f}%)")
-        print(f"  R²:   {r2_bayes:.4f}")
-        print("\nOptimal parameters:")
-        for param, value in opt.best_params_.items():
-            print(f"  {param}: {value:.4f}" if isinstance(value, float) else f"  {param}: {value}")
-        print(f"\nBest parameters found on iteration: {best_iteration} of 25")
-        print("\n--- Training Set Metrics (Bayesian Optimized XGBoost) ---")
-        print(f"  RMSE (Train): ${rmse_train_bayes:.4f}")
-        print(f"  MAE  (Train): ${mae_train_bayes:.4f}")
-        print(f"  R²   (Train): {r2_train_bayes:.4f}")
-        
         results = {
             "model_type": "bayesian",
             "training_time": training_time_bayesian,
@@ -203,7 +176,8 @@ class EthereumPredictor:
         if not self.is_trained or self.xgb_bayesian is None:
             raise Exception("Models not trained yet. Call train_models first.")
         
-        feature_array = np.array([[
+        feature_array = np.array([
+            [
             latest_features['Price_lag1'],
             latest_features['Price_lag2'], 
             latest_features['Vol_lag1'],
@@ -255,7 +229,6 @@ class EthereumPredictor:
             joblib.dump(self.xgb_bayesian, f"{filepath}/xgb_bayesian.pkl")
         joblib.dump(self.scaler, f"{filepath}/scaler.pkl")
         joblib.dump(self.training_results, f"{filepath}/training_results.pkl")
-        print(f"Models saved to {filepath}")
     
     def load_models(self, filepath: str = None):
         """Load trained models"""
@@ -273,9 +246,7 @@ class EthereumPredictor:
                 self.training_results = joblib.load(f"{filepath}/training_results.pkl")
             
             self.is_trained = True
-            print(f"Models loaded from {filepath}")
         except Exception as e:
-            print(f"Failed to load models: {e}")
             self.is_trained = False
     
     def get_model_status(self) -> Dict:
